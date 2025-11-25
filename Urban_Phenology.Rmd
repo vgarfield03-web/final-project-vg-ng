@@ -1,0 +1,174 @@
+---
+title: "Urban Phenology Project"
+author: "Victoria Garfield"
+date: "2025-11-11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(sf)
+library(terra)
+library(tidyverse)
+library(terra)
+library(ggplot2)
+library(dplyr)
+```
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+. Introduce the problem and explain why: 
+Urbanization impacts local climate patterns and species interactions with the surrounding land; this leads to ecological shifts, such as the timing of events like flowering or migration (Park et al. 2023; Leong 2014). These changes in our environments often end up leading to changes in phenology (Wu et al 2025). Changes in phenology can disrupt the surrounding ecosystems, this can impact the relationship between pollinators and plants. This in turn impacts seasonal changes, coming earlier or later, flowering times, and bee distribution (Park et al. 2023; Leong 2014).  Urbanized areas tend to have warmer seasons, but the understanding of this phenomenon is not well known. Understanding why these kinds of patterns differ in urban and rural areas is important. As we see an increase in urbanization and climate change, the observation between rural and urbanized areas can help us prepare and understand what we may see more widespread in the future. 
+
+2. Past work and data available
+Past work on the studies of urbanized areas compared to rural found that urban environments tend to have earlier flowering times and differing arrival times of bees within these areas compared to rural areas. (Wu et al. 2025; Li, X et al. 2017). With this in mind, the observation of environmental changes like reduced vegetation, higher surface temperatures and carbon clusters, via MODIS or NDVI can help us measure these traits. The main setback to these methods of collecting data would be coarse spatial scales. This problem prevents us from looking and finer details of these urbanized areas, and potentially missing rare or special species that may benefit from these urbanized areas. With more detailed/smaller scale datasets like the Oregon Bee Atlas (OBA) and the Global Biodiversity Information Facility (GBIF) can grant us insight on localized temporal changes in species activity. In conjunction with environmental datasets like PRISM climate data and NLCD land cover data set, we can provide a more precise scale of what drives these differences between urban and rural areas.
+3. Purpose of the study
+
+
+To address the questions of how:
+Further refine your approach (e.g., what data will you combine/transorm to a new type, how will you address the question)
+Justify why this is needed now (e.g., visualization to test a new dimension of the question or better convey an old one)
+
+4. Hypotheses/questions:
+My hypotheses and questions are as follows, Hypothesis one, how do seasonal changes of urban environments compared to rural areas impact bee phrenology. Hypothesis two would be what is driving these changes. For hypothesis three, what causes these differences in phenology. 
+
+9.5.2 Dataset identification
+The data I will be using primarily is Oregon Bee Atlas (OBA) dataset, in conjunction with the National Land Cover Database (NLCD).  NLCD will allow me to look at urbanized areas and forest cover. This is useful because I will be able to compare these two and see how urbanization has impacted bee phenology. I like this dataset because I can also look at how forest cover has changed over times, whether that is from wildfires or human interference, and infer that way. 
+
+```{r}
+oba_clean <- read.csv("~/Downloads/BeeUrbanizationProject/OBA_2018-2024.csv")
+
+glimpse(oba_clean)
+
+## cleaning Data, Getting rid of NA's 
+oba_clean <- oba_clean %>% filter(!is.na(decimalLatitude), !is.na(decimalLongitude))
+
+
+## Convert to sf points (lat/long fields)
+oba_sf <- st_as_sf(oba_clean, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+
+## NCLD 2020 RIF RASTER 
+nlcd_2020_landcover <- rast("~/Downloads/BeeUrbanizationProject/Annual_NLCD_LndCov_2020_CU_C1V1.tif")
+
+nlcd_2020_impervious <- rast("~/Downloads/BeeUrbanizationProject/Annual_NLCD_FctImp_2020_CU_C1V1.tif")
+```
+
+
+```{r}
+# reprojecting OBA points, to align with NLCD 
+oba_sf <- st_transform(oba_sf, crs(nlcd_2020_landcover))
+
+```
+
+```{r}
+## Extract NLCD values at each bee point 
+oba_clean$nlcd_2020_landcover <- terra::extract(
+  nlcd_2020_landcover,
+  vect(oba_sf)
+)[,2]
+
+```
+
+```{r}
+## Extracting Impervious surface value 
+oba_clean$nlcd_2020_impervious <- terra::extract(
+  nlcd_2020_impervious,
+  vect(oba_sf)
+)[,2]
+
+```
+
+```{r}
+##quick confirmation of nlcd land cover, making sure its what I am looking for 
+plot(nlcd_2020_landcover, main = "NLCD 2020 Land Cover")
+points(oba_sf, pch = 20, col = "green")
+
+```
+```{r}
+## Define and add rural/urban classification, impervous
+oba_clean$imperv_class <- dplyr::case_when(
+  oba_clean$nlcd_2020_impervious >= 20 ~ "Urban",
+  oba_clean$nlcd_2020_impervious > 0 & oba_clean$nlcd_2020_impervious < 20 ~ "Suburban",
+  oba_clean$nlcd_2020_impervious == 0 ~ "Rural",
+   TRUE ~ NA_character_
+)
+
+##Error in `mutate()`: In argument: `doy_mid = (startDayofYear + endDayofYear)/2`.Caused by error in `startDayofYear + endDayofYear`:! non-numeric argument to binary operator, going to empty srtings as NA
+
+oba_clean <- oba_clean %>%
+  mutate(
+    endDayofYear = ifelse(endDayofYear == "", NA, endDayofYear),
+    endDayofYear = as.numeric(endDayofYear)
+  )
+
+oba_clean <- oba_clean %>%
+  mutate(
+    endDayofYear = ifelse(endDayofYear == "", NA, endDayofYear),
+    endDayofYear = as.numeric(endDayofYear)
+  )
+
+
+##Phenology metrics 
+oba_clean <- oba_clean %>%
+  mutate(
+    doy_start = startDayofYear,
+    doy_end = endDayofYear,
+    doy_mid = (startDayofYear + endDayofYear) / 2,
+    flight_window = endDayofYear - startDayofYear
+  )
+```
+
+```{r}
+## create midpoint of my DOY 
+oba_clean <- oba_clean %>%
+  mutate(
+    doy_mid = (startDayofYear + endDayofYear) / 2
+  )
+
+```
+
+```{r}
+hist(oba_clean$flight_window,
+     main="Flight Window Length",
+     xlab="Days")
+
+```
+```{r}
+## Urban vs rural phenology comparison
+library(ggplot2)
+
+ggplot(oba_clean, aes(x = doy_mid)) +
+  geom_histogram() +
+  labs(
+    title = "Bee Phenology by Urban/Rural Locations",
+    x = "Day of Year (Midpoint)",
+    y = "Amount of bees",
+  )
+```
+
+Now that we have collected DOY bee phenology and window of flight time, I want to compare these and see how be phenology compares to the window of flight time in urban and rural areas.
+
+```{r}
+# filter and clean oba_clean, so it can be plotted as a ggplot
+oba_clean_plot <- oba_clean %>%
+  filter(!is.na(doy_mid), !is.na(flight_window), !is.na(imperv_class)) %>%
+  mutate(imperv_class = factor(imperv_class, levels = c("Rural", "Urban")))
+
+## ggplot 
+ggplot(oba_clean, aes(x = doy_mid, fill = imperv_class)) + 
+  geom_histogram() +
+scale_fill_manual(
+  values = c("Urban" = "red", "Rural" = "green")
+) 
+na.translate = FALSE #want to hide NA from the legend
+
+labs( title = "Bee phenology with urban, suburban and rural distinction", x = "day of the year", y = "number of bees", fill = "urbanization level") +
+theme_classic()
+
+```
+

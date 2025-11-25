@@ -1,0 +1,17 @@
+# Large rasters
+*.tif
+*.tif.aux.xml
+
+# RStudio files
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Bookdown outputs
+_book/
+_bookdown_files/
+
+# Nested Git repos
+*/.git/
+
