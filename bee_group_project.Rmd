@@ -1,0 +1,353 @@
+---
+title: "group data project"
+author: "Victoria Garfield"
+date: "2025-11-24"
+output: html_document
+---
+
+```{r}
+library(terra)   # for raster data
+library(sf)      # for vector/spatial data
+library(dplyr)   # for data manipulation
+library(ggplot2) # for plotting
+library(maps) 
+library(landscapemetrics) # does things by class!
+library(RcppArmadillo)
+library(tigris)
+library(tidyverse)
+library(igraph) #for networks
+library(networkD3) #also for networks
+```
+
+
+
+```{r}
+oba <- read.csv("~/Downloads/ds-environ-main/labs/data/OBA_2018-2024.csv")
+
+## NCLD 2020 RASTER 
+nlcd_landcover <- rast("~/Downloads/BeeUrbanizationProject/Annual_NLCD_LndCov_2020_CU_C1V1.tif")
+
+crs(nlcd_landcover)
+#reload and reporject boundary 
+or <- states(cb = TRUE, year = 2020) %>%
+  filter(STUSPS == "OR") %>%
+  st_transform(crs(nlcd_landcover))
+
+# crop nlcd to oregon 
+nlcd_or <- crop(nlcd_landcover, vect(or))
+nlcd_or <- mask(nlcd_or, vect(or))
+
+# Plot to check
+plot(nlcd_or)
+```
+
+```{r}
+## filtering nlcd to oregon, polygon
+or <- st_as_sf(maps::map("state", "oregon", fill = TRUE, plot = FALSE))
+
+# check CRS
+st_crs(or)
+```
+
+
+```{r}
+# See unique land cover classes in Oregon
+unique(values(nlcd_or))
+```
+Value	Meaning
+11	Open Water
+12	Perennial Ice/Snow
+21	Developed, Open Space
+22	Developed, Low Intensity
+23	Developed, Medium Intensity
+24	Developed, High Intensity
+31	Barren Land
+41	Deciduous Forest
+42	Evergreen Forest
+43	Mixed Forest
+52	Shrub/Scrub
+71	Herbaceous
+81	Pasture/Hay
+82	Cultivated Crops
+90	Woody Wetlands
+95	Emergent Herbaceous Wetlands
+
+```{r}
+# too many NA's in coordinates, need to clean up data first.
+oba_clean <- oba %>%
+  filter(!is.na(decimalLatitude),
+         !is.na(decimalLongitude))
+nrow(oba_clean)
+```
+
+
+```{r}
+# convert oba_clean to spatial
+oba_sf <- st_as_sf(oba_clean, coords = c("decimalLongitude", "decimalLatitude"),
+  crs = 4326
+)
+```
+
+```{r}
+# transform to nlcd crs
+oba_sf <- st_transform(oba_sf, crs(nlcd_landcover))
+```
+
+```{r}
+# land cover extracting, continued 
+oba_sf$landcover <- terra::extract(nlcd_or, vect(oba_sf))[,2]
+
+# filter for specific classes
+classes <- c(41, 81, 82, 21, 22, 23, 24)
+oba_filtered <- oba_sf %>% 
+  filter(landcover %in% classes)
+
+# want to check bee records within the land cover 
+table(is.na(oba_sf$landcover))
+
+```
+```{r}
+# going to keep the bees that live within oregon, this is to analyze land cover vs bees 
+oba_sf_or <- oba_sf %>% 
+  filter(!is.na(landcover))
+```
+
+```{r}
+# making a readable NLCD land cover name, filtering to look at varying urbanized areas, rather than all the classes. 
+nlcd_classes <- tibble::tibble(
+  landcover = c(41, 81, 82, 21, 22, 23, 24), 
+  landcover_name = c("Mixed Forest", "Pasture/Hay", "Cultivated Crops", "Developed Open Space", "Developed Low Intensity", "Developed Medium Intensity",	"Developed High Intensity" )
+)
+
+#join desired classes to bees 
+oba_sf_counties <- oba_sf_counties %>%
+  left_join(nlcd_classes, by = c("landcover_value" = "landcover"))
+
+
+table(oba_sf$landcover_name, useNA = "ifany")
+
+```
+```{r}
+# Bee summary by land types
+
+bees <- oba_sf_counties %>% 
+  st_set_geometry(NULL) %>% 
+  group_by(landcover_name) %>%
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+
+bees
+```
+```{r}
+# pick my counties I want to analyze 
+or_counties <- counties(state = "OR", year = 2020) %>% 
+  st_transform(crs(nlcd_or))
+
+selected_counties <- or_counties %>%
+  filter(NAME %in% c("Wheeler County", "Multnomah County"))
+```
+
+```{r}
+# cropping the two counties and plotting them as a comparison
+# Combine the two counties into a single spatial object
+selected_counties <- or_counties %>%
+  filter(NAME %in% c("Multnomah", "Wheeler"))
+
+# Crop and mask NLCD to just these counties
+nlcd_counties <- crop(nlcd_or, vect(selected_counties))
+nlcd_counties <- mask(nlcd_counties, vect(selected_counties))
+
+nlcd_counties_small <- terra::aggregate(nlcd_counties, fact = 5)
+nlcd_counties_df <- as.data.frame(nlcd_counties_small, xy = TRUE)
+
+# Add urban/rural classification
+nlcd_counties_df$urban_rural <- ifelse(
+  nlcd_counties_df$Annual_NLCD_LndCov_2020_CU_C1V1 %in% c(21,22,23,24),
+  "Urban",
+  "Rural"
+)
+
+```
+```{r}
+# filtering for bees in these counties 
+# Transform bees to the same CRS
+oba_sf_counties <- st_transform(oba_sf, st_crs(selected_counties))
+
+# Keep only bees within the selected counties
+oba_sf_counties <- oba_sf_counties[selected_counties, ]
+
+```
+
+```{r}
+# plotting counties with the bees 
+ggplot() +
+  geom_raster(data = nlcd_counties_df, aes(x = x, y = y, fill = urban_rural)) +
+  geom_sf(data = oba_sf_counties, color = "cornflowerblue") +
+  geom_sf(data = selected_counties, fill = NA, color = "black") +
+  coord_sf() +
+  labs(
+    title = "Bees on Landcover in Multnomah and Wheeler Counties",
+    fill = "Land Type"
+  ) +
+  scale_fill_manual(values = c("Rural" = "forestgreen", "Urban" = "red"))
+
+```
+
+
+
+
+
+```{r}
+# Which species uses which landscape, this is a species x landcover x counts table, 
+species_landcover <- oba_sf %>%
+  st_set_geometry(NULL) %>%
+  group_by(genus, specificEpithet, landcover_value) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+
+
+```{r}
+# raster too large, have to downsize it
+nlcd_small <- terra::aggregate(nlcd_or, fact = 5)  # 5 = shrink 5x
+#convert smaller raster to dataframe for ggplot
+nlcd_df <- as.data.frame(nlcd_small, xy = TRUE)
+```
+
+
+```{r}
+#recoding landicover into urban vs rural
+nlcd_df$urban_rural <- ifelse(
+  nlcd_df$Annual_NLCD_LndCov_2020_CU_C1V1 %in% c(21,22,23,24),
+  "Urban",
+  "Rural"
+)
+```
+
+
+```{r}
+# Oregon Urban vs Rural landcover 
+ggplot(nlcd_df, aes(x = x, y = y, fill = urban_rural)) +
+  geom_tile() +
+  scale_fill_manual(values = c("Rural" = "lightblue", "Urban" = "red")) +
+  coord_equal() +
+  labs(title = "Oregon Land Cover (Urban vs Rural)")
+
+# TAKE THIS, PLOT OVER BEE DENSITY/DISTRIBUTION !!!!!!!!!!!!!
+
+```
+
+
+```{r}
+ggplot() +
+  geom_raster(data = nlcd_df, aes(x = x, y = y, fill = urban_rural)) +
+  geom_sf(data = oba_sf, color = "cornflowerblue") +
+  coord_sf() +
+  labs(title = "Bees on Oregon Landcover")
+
+```
+```{r}
+# county x landcover, wheeler and multnomah broken down by landcover type
+bees_by_county <- oba_sf_counties %>%
+  st_set_geometry(NULL) %>%
+  group_by(NAME, landcover_value) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(NAME, desc(count))
+
+bees_by_county
+```
+
+```{r}
+# Urban vs Rural bar plot 
+# Create urban/rural column
+oba_sf_counties <- oba_sf_counties %>%
+  mutate(urban_rural = ifelse(
+    landcover_value %in% c(21, 22, 23, 24), "Urban", "Rural"
+  ))
+
+# Summarize counts
+bees_county_urban <- oba_sf_counties %>%
+  st_set_geometry(NULL) %>%
+  group_by(NAME, urban_rural) %>%
+  summarise(count = n(), .groups = "drop")
+
+# Plot
+ggplot(bees_county_urban, aes(x = NAME, y = count, fill = urban_rural)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Rural" = "salmon4", "Urban" = "lightsteelblue3")) +
+  labs(
+    title = "Bee Abundance by County and Land Type",
+    x = "County",
+    y = "Bee Count",
+    fill = "Land Type"
+  ) +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+oba_df <- oba
+#This merges the latitude and longitude columns to create an X, Y coordinate
+oba_df$Lat_Long <- paste(oba$decimalLatitude, oba$decimalLongitude, sep = ",")
+#This merges the genus and species columns to display the full name of the bees
+oba_df$BeeSpecies <- paste(oba_df$genus, oba_df$specificEpithet, sep = " ")
+sort(unique(oba_df$BeeSpecies), decreasing = FALSE)
+
+oba_df$PlantSpecies <- paste(oba_df$genusPlant, oba_df$speciesPlant, sep = " ")
+sort(unique(oba_df$PlantSpecies), decreasing = FALSE)
+```
+
+```{r}
+
+subsetted_oba_for_bees <- oba_df %>%
+  group_by(BeeSpecies, Lat_Long) %>%
+  summarize(value = n()) %>%
+  ungroup()
+
+subsetted_oba_for_plants <- oba_df %>%
+  group_by(PlantSpecies, Lat_Long) %>%
+  summarize(value = n()) %>%
+  ungroup()
+
+glimpse(subsetted_oba_for_bees)
+glimpse(subsetted_oba_for_plants)
+```
+
+```{r}
+
+oba_network_bees <- graph_from_data_frame(subsetted_oba_for_bees, 
+                                          directed = TRUE)
+oba_network_plants <- graph_from_data_frame(subsetted_oba_for_plants,
+                                            directed = TRUE)
+```
+
+```{r}
+bee_cluster <- cluster_walktrap(oba_network_bees)
+plant_cluster <- cluster_walktrap(oba_network_plants)
+
+bee_member <- membership(bee_cluster)
+plant_member <- membership(plant_cluster)
+
+bee_3d <- igraph_to_networkD3(oba_network_bees, group = bee_member, 
+                              what = "both")
+plant_3d <- igraph_to_networkD3(oba_network_plants, group = plant_member,
+                                what = "both")
+```
+
+```{r}
+sankeyNetwork(Links = bee_3d$links, Nodes = bee_3d$nodes,
+              Source = "source", Target = "target", 
+              Value = "value", NodeID = "name", 
+              nodePadding = 0, height = 100000)
+```
+
+```{r}
+sankeyNetwork(Links =plant_3d$links, Nodes = plant_3d$nodes,
+              Source = "source", Target = "target", 
+              Value = "value", NodeID = "name", 
+              nodePadding = 0, height = 100000)
+```
+
