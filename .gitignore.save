@@ -1,0 +1,59 @@
+# Large rasters
+*.tif
+*.tif.aux.xml
+
+# RStudio files
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Bookdown outputs
+_book/
+_bookdown_files/
+
+# Nested Git repos
+*/.git/
+
+# Ignore large raster files
+*.tif
+*.img
+
+# Ignore RStudio files
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Ignore large data files
+*.csv.zip
+*.Rds
+*.RData
+
+# Ignore OS junk
+.DS_Store
+
+# Ignore large raster files
+*.tif
+*.img
+
+# Ignore RStudio files
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Ignore large data files
+*.csv.zip
+*.Rds
+*.RData
+
+# Ignore OS junk
+.DS_Store
+
+
+^X
+x
+
+^x
+
