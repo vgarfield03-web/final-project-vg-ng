@@ -250,15 +250,6 @@ ggplot(nlcd_df, aes(x = x, y = y, fill = urban_rural)) +
 ```
 
 
-
-```{r}
-ggplot() +
-  geom_raster(data = nlcd_df, aes(x = x, y = y, fill = urban_rural)) +
-  geom_sf(data = oba_sf, color = "cornflowerblue") +
-  coord_sf() +
-  labs(title = "Bees on Oregon Landcover")
-```
-
 ```{r}
 # county x landcover, wheeler and multnomah broken down by landcover type
 bees_by_county <- oba_sf_counties %>%
@@ -267,10 +258,6 @@ bees_by_county <- oba_sf_counties %>%
   summarise(count = n(), .groups = "drop") %>%
   arrange(county, desc(count))
 
-  group_by(NAME, landcover) %>%
-  summarise(count = n(), .groups = "drop") %>%
-  arrange(NAME, desc(count))
-  
 bees_by_county
 ```
 
@@ -290,15 +277,9 @@ bees_county_urban <- oba_sf_counties %>%
   group_by(county, urban_rural) %>%
   summarise(count = n(), .groups = "drop")
 
+
 # Plot
 ggplot(bees_county_urban, aes(x = county, y = count, fill = urban_rural)) +
-
-  st_set_geometry(NULL) %>%
-  group_by(NAME, urban_rural) %>%
-  summarise(count = n(), .groups = "drop")
-
-# Plot
-ggplot(bees_county_urban, aes(x = NAME, y = count, fill = urban_rural)) +
   geom_col(position = "dodge") +
   scale_fill_manual(values = c("Rural" = "salmon4", "Urban" = "lightsteelblue3")) +
   labs(
@@ -311,6 +292,10 @@ ggplot(bees_county_urban, aes(x = NAME, y = count, fill = urban_rural)) +
 
 ```
 
+
+
+
+git
 ```{r}
 oba_df <- oba
 #This merges the latitude and longitude columns to create an X, Y coordinate
