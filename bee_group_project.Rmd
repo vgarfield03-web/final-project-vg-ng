@@ -150,7 +150,7 @@ or_counties <- counties(state = "OR", year = 2020) %>%
   st_transform(crs(nlcd_or))
 
 selected_counties <- or_counties %>%
-  filter(NAME %in% c("Wheeler County", "Multnomah County"))
+  filter(NAME %in% c("Wheeler County", "Multnomah County", "Clackamas County", "Sherman County"))
 ```
 
 
@@ -163,7 +163,7 @@ selected_counties <- or_counties %>%
 # cropping the two counties and plotting them as a comparison
 # Combine the two counties into a single spatial object
 selected_counties <- or_counties %>%
-  filter(NAME %in% c("Multnomah", "Wheeler"))
+  filter(NAME %in% c("Multnomah", "Wheeler", "Clackamas", "Sherman"))
 
 # Crop and mask NLCD to just these counties
 nlcd_counties <- crop(nlcd_or, vect(selected_counties))
@@ -272,7 +272,7 @@ landcover %in% c(21, 22, 23, 24), "Urban", "Rural"
 # Summarize counts
 bees_county_urban <- oba_sf_counties %>%
 
-  filter(county %in% c("Wheeler", "Multnomah")) %>%
+  filter(county %in% c("Wheeler", "Multnomah", "Clackamas", "Sherman")) %>%
   st_set_geometry(NULL) %>%
   group_by(county, urban_rural) %>%
   summarise(count = n(), .groups = "drop")
