@@ -98,7 +98,7 @@ oba_sf <- st_transform(oba_sf, crs(nlcd_landcover))
 oba_sf$landcover <- terra::extract(nlcd_or, vect(oba_sf))[,2]
 
 # filter for specific classes
-classes <- c(41, 81, 82, 21, 22, 23, 24)
+classes <- c(81,24)
 oba_filtered <- oba_sf %>% 
   filter(landcover %in% classes)
 
@@ -115,8 +115,8 @@ oba_sf_or <- oba_sf %>%
 ```{r}
 # making a readable NLCD land cover name, filtering to look at varying urbanized areas, rather than all the classes. 
 nlcd_classes <- tibble::tibble(
-  landcover = c(41, 81, 82, 21, 22, 23, 24), 
-  landcover_name = c("Mixed Forest", "Pasture/Hay", "Cultivated Crops", "Developed Open Space", "Developed Low Intensity", "Developed Medium Intensity",	"Developed High Intensity" )
+  landcover = c(81,24), 
+  landcover_name = c("Pasture/Hay", "Developed High Intensity" )
 )
 
 #join desired classes to bees 
@@ -178,7 +178,7 @@ nlcd_counties_df <- as.data.frame(nlcd_counties_small, xy = TRUE)
 
 # Add urban/rural classification
 nlcd_counties_df$urban_rural <- ifelse(
-  nlcd_counties_df$Annual_NLCD_LndCov_2020_CU_C1V1 %in% c(21,22,23,24),
+  nlcd_counties_df$Annual_NLCD_LndCov_2020_CU_C1V1 %in% c(24),
   "Urban",
   "Rural"
 )
@@ -233,7 +233,7 @@ nlcd_df <- as.data.frame(nlcd_small, xy = TRUE)
 ```{r}
 #recoding landicover into urban vs rural
 nlcd_df$urban_rural <- ifelse(
-  nlcd_df$Annual_NLCD_LndCov_2020_CU_C1V1 %in% c(21,22,23,24),
+  nlcd_df$Annual_NLCD_LndCov_2020_CU_C1V1 %in% c(24),
   "Urban",
   "Rural"
 )
@@ -266,7 +266,7 @@ bees_by_county
 # Create urban/rural column
 oba_sf_counties <- oba_sf_counties %>%
   mutate(urban_rural = ifelse(
-landcover %in% c(21, 22, 23, 24), "Urban", "Rural"
+landcover %in% c(24), "Urban", "Rural"
  ))
 
 # Summarize counts
