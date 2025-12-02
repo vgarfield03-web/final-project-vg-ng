@@ -294,8 +294,6 @@ ggplot(bees_county_urban, aes(x = county, y = count, fill = urban_rural)) +
 
 
 
-
-git
 ```{r}
 oba_df <- oba
 #This merges the latitude and longitude columns to create an X, Y coordinate
