@@ -295,29 +295,47 @@ ggplot(bees_county_urban, aes(x = county, y = count, fill = urban_rural)) +
 
 
 ```{r}
-oba_df <- oba
-#This merges the latitude and longitude columns to create an X, Y coordinate
-oba_df$Lat_Long <- paste(oba$decimalLatitude, oba$decimalLongitude, sep = ",")
-#This merges the genus and species columns to display the full name of the bees
-oba_df$BeeSpecies <- paste(oba_df$genus, oba_df$specificEpithet, sep = " ")
-sort(unique(oba_df$BeeSpecies), decreasing = FALSE)
+oba_counties_df <- oba_sf_counties
 
-oba_df$PlantSpecies <- paste(oba_df$genusPlant, oba_df$speciesPlant, sep = " ")
-sort(unique(oba_df$PlantSpecies), decreasing = FALSE)
+#This merges the genus and species columns to display the full name of the bees
+oba_counties_df$BeeSpecies <- paste(oba_counties_df$genus, oba_counties_df$specificEpithet, sep = " ")
+sort(unique(oba_counties_df$BeeSpecies), decreasing = FALSE)
+
+oba_counties_df$PlantSpecies <- paste(oba_counties_df$genusPlant, oba_counties_df$speciesPlant, sep = " ")
+sort(unique(oba_counties_df$PlantSpecies), decreasing = FALSE)
+
 ```
 
 ```{r}
-subsetted_oba_for_bees <- oba_df %>%
-  group_by(BeeSpecies, Lat_Long) %>%
-  summarize(value = n()) %>%
-  ungroup()
+#For this project, we will be focusing on bee and plant populations in these four counties
 
-subsetted_oba_for_plants <- oba_df %>%
-  group_by(PlantSpecies, Lat_Long) %>%
+target <- c("Clackamas", "Multnomah", "Sherman", "Wheeler")
+
+#This subsets the 
+
+subsetted_oba_for_bees <- oba_counties_df %>%
+  group_by(BeeSpecies, county) %>%
   summarize(value = n()) %>%
+  filter(county %in% target) %>%
+  filter(value < 100) %>%
+  arrange(desc(value)) %>%
   ungroup()
+  
+subsetted_oba_for_plants <- oba_counties_df %>%
+  group_by(PlantSpecies, county) %>%
+  summarize(value = n()) %>%
+  filter(county %in% target) %>%
+  filter(value < 100) %>%
+  arrange(desc(value)) %>%
+  ungroup() 
 
 glimpse(subsetted_oba_for_bees)
+glimpse(subsetted_oba_for_plants)
+
+subsetted_oba_for_bees <- sf::st_drop_geometry(subsetted_oba_for_bees)
+glimpse(subsetted_oba_for_bees)
+
+subsetted_oba_for_plants <- sf::st_drop_geometry(subsetted_oba_for_plants)
 glimpse(subsetted_oba_for_plants)
 ```
 
@@ -345,13 +363,15 @@ plant_3d <- igraph_to_networkD3(oba_network_plants, group = plant_member,
 sankeyNetwork(Links = bee_3d$links, Nodes = bee_3d$nodes,
               Source = "source", Target = "target", 
               Value = "value", NodeID = "name", 
-              nodePadding = 0, height = 100000)
+              nodePadding = 0, height = 1000,
+              width = 1000)
 ```
 
 ```{r}
 sankeyNetwork(Links =plant_3d$links, Nodes = plant_3d$nodes,
               Source = "source", Target = "target", 
               Value = "value", NodeID = "name", 
-              nodePadding = 0, height = 100000)
+              nodePadding = 0, height = 1000,
+              width = 1000)
 ```
 
